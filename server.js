@@ -8,86 +8,67 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve static files (e.g., HTML, CSS, JS)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to handle downloading content with quality selection
+
+// Ensure the downloads directory exists
+const downloadDir = path.join(__dirname, 'downloads');
+if (!fs.existsSync(downloadDir)) {
+  fs.mkdirSync(downloadDir, { recursive: true });
+}
+
+// Route to handle video download
 app.post('/download', (req, res) => {
-  const { url, quality } = req.body;
+  const { url } = req.body;
 
-  if (!url || !quality) {
-    return res.status(400).json({ error: 'URL and quality are required' });
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
   }
 
-  // Define the download path for the video
-  const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+  const downloadPath = path.join(downloadDir, 'video.mp4');
 
-  // Ensure download directory exists
-  if (!fs.existsSync(path.dirname(downloadPath))) {
-    fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
-  }
+  // yt-dlp command: Fetch best video + audio and merge into MP4
+  const command = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 -o "${downloadPath}" ${url}`;
 
-  // Prepare the yt-dlp command to download the video with selected quality
-  let command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
-
+  console.log(`Executing command: ${command}`);
+  
   exec(command, (err, stdout, stderr) => {
     if (err) {
-      console.error('Error during download:', stderr);
+      console.error('Download Error:', stderr);
       return res.status(500).send('Failed to download video.');
     }
 
-    if (stderr) {
-      console.error('stderr:', stderr);
-      return res.status(500).send('Failed to download video.');
-    }
+    console.log('Download Completed:', stdout);
 
-    console.log('Video downloaded:', stdout);
+    // Verify if the file exists and its size
+    if (fs.existsSync(downloadPath)) {
+      const stats = fs.statSync(downloadPath);
 
-    // After the video is downloaded, merge audio and video (if needed)
-    if (stdout.includes("audio only")) {
-      let mergeCommand = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 -o "${downloadPath}" ${url}`;
+      if (stats.size > 1024) { // Ensure file size is larger than 1 KB
+        console.log('File downloaded successfully:', downloadPath);
 
-      exec(mergeCommand, (mergeErr, mergeStdout, mergeStderr) => {
-        if (mergeErr) {
-          console.error('Error during merge:', mergeStderr);
-          return res.status(500).send('Failed to merge video and audio.');
-        }
-
-        console.log('Merge output:', mergeStdout);
-
-        // Send the video file to the client as a download
-        res.download(downloadPath, 'video.mp4', (downloadErr) => {
-          if (downloadErr) {
-            console.error('Error sending file:', downloadErr);
+        // Send the file to the client
+        res.download(downloadPath, 'video.mp4', (err) => {
+          if (err) {
+            console.error('Error sending file:', err);
             return res.status(500).send('Failed to send video file.');
           }
 
-          // Optionally, remove the file after it's sent to avoid storage issues
+          // Optionally delete the file after sending
           fs.unlink(downloadPath, (unlinkErr) => {
             if (unlinkErr) console.error('Error deleting file:', unlinkErr);
             else console.log('File deleted after download');
           });
         });
-      });
+      } else {
+        console.error('Downloaded file is too small, likely an error occurred.');
+        return res.status(500).send('Downloaded file is invalid or incomplete.');
+      }
     } else {
-      // Send the video file directly if it's already merged
-      res.download(downloadPath, 'video.mp4', (downloadErr) => {
-        if (downloadErr) {
-          console.error('Error sending file:', downloadErr);
-          return res.status(500).send('Failed to send video file.');
-        }
-
-        // Optionally, remove the file after it's sent to avoid storage issues
-        fs.unlink(downloadPath, (unlinkErr) => {
-          if (unlinkErr) console.error('Error deleting file:', unlinkErr);
-          else console.log('File deleted after download');
-        });
-      });
+      console.error('Download failed: File not found.');
+      return res.status(500).send('Download failed.');
     }
   });
 });
