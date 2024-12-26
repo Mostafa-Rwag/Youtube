@@ -1,4 +1,4 @@
-# Use a lightweight Node.js image
+# dUse a lightweight Node.js image
 FROM node:18-slim
 
 # Set environment variables for non-interactive installation
