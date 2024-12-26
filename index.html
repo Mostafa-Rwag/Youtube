@@ -7,126 +7,124 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f8f9fa;
-            margin: 0;
-            padding: 0;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
             height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
         }
-
         .container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 400px;
-        }
-
-        h1 {
-            font-size: 24px;
             text-align: center;
-            color: #333;
+            padding: 30px;
+            background-color: white;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
         }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #555;
-        }
-
-        input[type="text"], button {
-            width: 100%;
+        input[type="url"] {
             padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            width: 300px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
         }
-
+        select {
+            padding: 10px;
+            width: 320px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
         button {
+            padding: 10px 20px;
             background-color: #007bff;
             color: white;
-            font-weight: bold;
-            cursor: pointer;
             border: none;
+            border-radius: 5px;
+            cursor: pointer;
         }
-
         button:hover {
             background-color: #0056b3;
         }
-
-        .error, .success {
-            text-align: center;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-
         .error {
             color: red;
-        }
-
-        .success {
-            color: green;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Video Downloader</h1>
-        <form id="download-form">
-            <label for="url">YouTube Video URL:</label>
-            <input type="text" id="url" name="url" placeholder="Enter video URL" required />
+        <form id="downloadForm">
+            <input type="url" id="videoUrl" placeholder="Enter YouTube URL" required><br><br>
+            <select id="qualitySelect" required>
+                <option value="">Select Quality</option>
+            </select><br><br>
             <button type="submit">Download Video</button>
         </form>
-        <p id="message" class="error"></p>
+        <div class="error" id="errorMessage"></div>
     </div>
 
     <script>
-        const form = document.getElementById('download-form');
-        const messageElement = document.getElementById('message');
-
-        form.addEventListener('submit', async (event) => {
+        document.getElementById('downloadForm').addEventListener('submit', async (event) => {
             event.preventDefault();
 
-            const url = document.getElementById('url').value.trim();
-            if (!url) {
-                messageElement.textContent = "Please enter a video URL.";
+            const url = document.getElementById('videoUrl').value;
+            const quality = document.getElementById('qualitySelect').value;
+
+            if (!url || !quality) {
+                document.getElementById('errorMessage').textContent = 'Please provide a valid URL and select a quality.';
                 return;
             }
 
-            messageElement.textContent = ""; // Clear previous messages
-
             try {
-                const response = await fetch('/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url }),
-                });
-
+                const response = await fetch(`/download?url=${encodeURIComponent(url)}&quality=${encodeURIComponent(quality)}`);
                 if (response.ok) {
-                    // Trigger download by creating an invisible link
+                    // Triggering the download of the video
                     const blob = await response.blob();
                     const link = document.createElement('a');
-                    link.href = window.URL.createObjectURL(blob);
-                    link.download = 'video.mp4'; // Default name
+                    link.href = URL.createObjectURL(blob);
+                    link.download = 'video.mp4';
                     link.click();
-                    messageElement.textContent = "Download started.";
-                    messageElement.className = "success";
                 } else {
-                    const errorData = await response.json();
-                    messageElement.textContent = errorData.error || "An error occurred.";
-                    messageElement.className = "error";
+                    const data = await response.json();
+                    document.getElementById('errorMessage').textContent = data.error || 'Error occurred during download.';
                 }
             } catch (error) {
-                console.error("Error during download:", error);
-                messageElement.textContent = "An unexpected error occurred.";
-                messageElement.className = "error";
+                document.getElementById('errorMessage').textContent = 'Error occurred during download.';
+                console.error(error);
             }
         });
+
+        async function fetchFormats() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) return;
+
+            try {
+                const response = await fetch('/get-formats', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+                const qualitySelect = document.getElementById('qualitySelect');
+                qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Clear previous options
+
+                data.formats.forEach(format => {
+                    const option = document.createElement('option');
+                    option.value = format.code;
+                    option.textContent = format.description;
+                    qualitySelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error fetching formats:', error);
+            }
+        }
+
+        // Fetch formats when the URL input is filled
+        document.getElementById('videoUrl').addEventListener('input', fetchFormats);
     </script>
 </body>
 </html>
