@@ -6,11 +6,64 @@ const port = 3000;
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve static files
-app.use(express.static('public'));
-
+// Serve the HTML page from the server
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Video Downloader</title>
+    </head>
+    <body>
+        <h1>YouTube Video Downloader</h1>
+        <form id="downloadForm">
+            <label for="url">YouTube Video URL:</label><br>
+            <input type="text" id="url" name="url" required><br><br>
+            <button type="submit">Download Video</button>
+        </form>
+
+        <script>
+            document.getElementById('downloadForm').addEventListener('submit', (event) => {
+                event.preventDefault();
+
+                const url = document.getElementById('url').value;
+                if (!url) {
+                    alert('Please enter a URL.');
+                    return;
+                }
+
+                fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.blob();
+                })
+                .then((blob) => {
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = 'video.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    URL.revokeObjectURL(downloadUrl);
+                    a.remove();
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    alert('Failed to download the video.');
+                });
+            });
+        </script>
+    </body>
+    </html>
+    `);
 });
 
 // Route to stream and download the video
