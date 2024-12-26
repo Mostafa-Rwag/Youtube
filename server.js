@@ -65,7 +65,23 @@ app.post('/download', (req, res) => {
       console.error('Error:', err);
       return res.status(500).json({ error: 'Error during download', message: stderr });
     }
-    res.status(200).json({ message: 'Download successful', output: stdout });
+    
+    if (stderr) {
+      console.error('stderr:', stderr);
+      return res.status(500).json({ error: 'Download failed', message: stderr });
+    }
+    
+    if (stdout.includes("has already been downloaded") || stdout.includes("File exists")) {
+      return res.status(200).json({ message: 'File already exists, skipping download.' });
+    }
+
+    // Check if download was successful
+    const filePath = path.join(downloadPath, `${stdout.trim().split('\n')[0]}.mp4`);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+      res.status(200).json({ message: 'Download successful', output: stdout });
+    } else {
+      res.status(500).json({ error: 'Downloaded file is empty', message: stderr });
+    }
   });
 });
 
