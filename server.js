@@ -24,7 +24,7 @@ app.post('/download', (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  // Define download path
+  // Define the download path for the video
   const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
 
   // Ensure download directory exists
@@ -32,7 +32,7 @@ app.post('/download', (req, res) => {
     fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
   }
 
-  // Prepare the yt-dlp command to download the video
+  // Prepare the yt-dlp command to download the video with selected quality
   let command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
 
   exec(command, (err, stdout, stderr) => {
@@ -48,19 +48,47 @@ app.post('/download', (req, res) => {
 
     console.log('Video downloaded:', stdout);
 
-    // Send the video file to the client as a download
-    res.download(downloadPath, 'video.mp4', (err) => {
-      if (err) {
-        console.error('Error sending file:', err);
-        return res.status(500).send('Failed to send video file.');
-      }
+    // After the video is downloaded, merge audio and video (if needed)
+    if (stdout.includes("audio only")) {
+      let mergeCommand = `yt-dlp -f bestvideo+bestaudio --merge-output-format mp4 -o "${downloadPath}" ${url}`;
 
-      // Optionally, remove the file after it's sent (to avoid server storage usage)
-      fs.unlink(downloadPath, (unlinkErr) => {
-        if (unlinkErr) console.error('Error deleting file:', unlinkErr);
-        else console.log('File deleted after download');
+      exec(mergeCommand, (mergeErr, mergeStdout, mergeStderr) => {
+        if (mergeErr) {
+          console.error('Error during merge:', mergeStderr);
+          return res.status(500).send('Failed to merge video and audio.');
+        }
+
+        console.log('Merge output:', mergeStdout);
+
+        // Send the video file to the client as a download
+        res.download(downloadPath, 'video.mp4', (downloadErr) => {
+          if (downloadErr) {
+            console.error('Error sending file:', downloadErr);
+            return res.status(500).send('Failed to send video file.');
+          }
+
+          // Optionally, remove the file after it's sent to avoid storage issues
+          fs.unlink(downloadPath, (unlinkErr) => {
+            if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+            else console.log('File deleted after download');
+          });
+        });
       });
-    });
+    } else {
+      // Send the video file directly if it's already merged
+      res.download(downloadPath, 'video.mp4', (downloadErr) => {
+        if (downloadErr) {
+          console.error('Error sending file:', downloadErr);
+          return res.status(500).send('Failed to send video file.');
+        }
+
+        // Optionally, remove the file after it's sent to avoid storage issues
+        fs.unlink(downloadPath, (unlinkErr) => {
+          if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+          else console.log('File deleted after download');
+        });
+      });
+    }
   });
 });
 
