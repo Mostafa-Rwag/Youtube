@@ -65,25 +65,35 @@ app.post('/download', (req, res) => {
       console.error('Error:', err);
       return res.status(500).json({ error: 'Error during download', message: stderr });
     }
-    
+
     if (stderr) {
       console.error('stderr:', stderr);
       return res.status(500).json({ error: 'Download failed', message: stderr });
     }
-    
+
+    // Check if file exists or if it's already downloaded
     if (stdout.includes("has already been downloaded") || stdout.includes("File exists")) {
       return res.status(200).json({ message: 'File already exists, skipping download.' });
     }
 
     // Check if download was successful
-    const filePath = path.join(downloadPath, `${stdout.trim().split('\n')[0]}.mp4`);
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
-      res.status(200).json({ message: 'Download successful', output: stdout });
+    const downloadedFiles = fs.readdirSync(downloadPath);
+    const filePath = downloadedFiles.find(file => file.includes('.mp4'));
+
+    if (filePath && fs.existsSync(path.join(downloadPath, filePath))) {
+      res.status(200).json({
+        message: 'Download successful',
+        file: filePath,
+        filePath: `/downloads/${filePath}`  // This will allow the frontend to download the file
+      });
     } else {
-      res.status(500).json({ error: 'Downloaded file is empty', message: stderr });
+      res.status(500).json({ error: 'Downloaded file is empty or missing' });
     }
   });
 });
+
+// Route to serve downloaded files
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
 // Start the server
 app.listen(port, () => {
