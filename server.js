@@ -1,6 +1,7 @@
 const express = require('express');
 const { exec } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const app = express();
 const port = 3000;
 
@@ -8,10 +9,11 @@ const port = 3000;
 app.use(express.json());
 
 // Serve static files (e.g., HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname,'index.html'));
 });
 
 // Route to get video formats (quality options)
@@ -49,7 +51,14 @@ app.post('/download', (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  let command = `yt-dlp -f ${quality} ${url}`;
+  // Define download path
+  const downloadPath = path.join(__dirname, 'downloads');
+  if (!fs.existsSync(downloadPath)) {
+    fs.mkdirSync(downloadPath); // Create download folder if it doesn't exist
+  }
+
+  // Prepare the yt-dlp command to download the video
+  let command = `yt-dlp -f ${quality} -o "${downloadPath}/%(title)s.%(ext)s" ${url}`;
 
   exec(command, (err, stdout, stderr) => {
     if (err) {
