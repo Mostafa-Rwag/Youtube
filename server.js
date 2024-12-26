@@ -16,34 +16,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to get video formats (quality options)
-app.post('/get-formats', (req, res) => {
-  const { url } = req.body;
-
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-
-  // yt-dlp command to get video formats
-  const command = `yt-dlp -F ${url}`;
-
-  exec(command, (err, stdout, stderr) => {
-    if (err) {
-      console.error('Error:', err);
-      return res.status(500).json({ error: 'Error fetching formats', message: stderr });
-    }
-    const formats = stdout
-      .split('\n')
-      .filter(line => line.trim() && !line.startsWith('Format code'))
-      .map(line => {
-        const parts = line.trim().split(/\s{2,}/);
-        return { code: parts[0], description: parts.slice(1).join(' ') };
-      });
-    res.status(200).json({ formats });
-  });
-});
-
-// Route to handle downloading content with quality selection and stream to client
+// Route to handle downloading content with quality selection
 app.post('/download', (req, res) => {
   const { url, quality } = req.body;
 
@@ -51,30 +24,42 @@ app.post('/download', (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  // Define a temporary download path
+  // Define download path
   const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+
+  // Ensure download directory exists
   if (!fs.existsSync(path.dirname(downloadPath))) {
-    fs.mkdirSync(path.dirname(downloadPath)); // Create download folder if it doesn't exist
+    fs.mkdirSync(path.dirname(downloadPath), { recursive: true });
   }
 
-  // yt-dlp command to download the video in the selected quality
-  exec(`yt-dlp -f ${quality} -o "${downloadPath}" ${url}`, (err, stdout, stderr) => {
+  // Prepare the yt-dlp command to download the video
+  let command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
+
+  exec(command, (err, stdout, stderr) => {
     if (err) {
       console.error('Error during download:', stderr);
       return res.status(500).send('Failed to download video.');
     }
+
+    if (stderr) {
+      console.error('stderr:', stderr);
+      return res.status(500).send('Failed to download video.');
+    }
+
     console.log('Video downloaded:', stdout);
 
-    // Stream the video directly to the user's device
-    res.download(downloadPath, (downloadErr) => {
-      if (downloadErr) {
-        console.error('Error while sending file:', downloadErr);
-        return res.status(500).send('Failed to send the video file.');
+    // Send the video file to the client as a download
+    res.download(downloadPath, 'video.mp4', (err) => {
+      if (err) {
+        console.error('Error sending file:', err);
+        return res.status(500).send('Failed to send video file.');
       }
 
-      // Optionally, remove the video file after download
-      fs.unlinkSync(downloadPath);
-      console.log('File sent successfully');
+      // Optionally, remove the file after it's sent (to avoid server storage usage)
+      fs.unlink(downloadPath, (unlinkErr) => {
+        if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+        else console.log('File deleted after download');
+      });
     });
   });
 });
