@@ -1,102 +1,85 @@
 const express = require('express');
-const { spawn } = require('child_process');
+const { exec } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 const app = express();
 const port = 3000;
 
 // Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve the HTML page from the server
+// Serve static files (e.g., HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Video Downloader</title>
-    </head>
-    <body>
-        <h1>YouTube Video Downloader</h1>
-        <form id="downloadForm">
-            <label for="url">YouTube Video URL:</label><br>
-            <input type="text" id="url" name="url" required><br><br>
-            <button type="submit">Download Video</button>
-        </form>
-
-        <script>
-            document.getElementById('downloadForm').addEventListener('submit', (event) => {
-                event.preventDefault();
-
-                const url = document.getElementById('url').value;
-                if (!url) {
-                    alert('Please enter a URL.');
-                    return;
-                }
-
-                fetch('/download', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url }),
-                })
-                .then((response) => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.blob();
-                })
-                .then((blob) => {
-                    const downloadUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = 'video.mp4';
-                    document.body.appendChild(a);
-                    a.click();
-                    URL.revokeObjectURL(downloadUrl);
-                    a.remove();
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    alert('Failed to download the video.');
-                });
-            });
-        </script>
-    </body>
-    </html>
-    `);
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route to stream and download the video
-app.post('/download', (req, res) => {
+// Route to get video formats (quality options)
+app.post('/get-formats', async (req, res) => {
     const { url } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'URL is required' });
     }
 
-    // yt-dlp command to stream the video
-    const ytDlp = spawn('yt-dlp', ['-f', 'best[ext=mp4]', '-o', '-', url]);
+    // yt-dlp command to get video formats
+    const command = `yt-dlp -F ${url}`;
 
-    // Set response headers to force download
-    res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-    res.setHeader('Content-Type', 'video/mp4');
+    try {
+        const result = await new Promise((resolve, reject) => {
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error fetching formats: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
+            });
+        });
 
-    ytDlp.stdout.pipe(res); // Stream video directly to client
+        // Parse formats from the command output
+        const formats = result
+            .split('\n')
+            .filter(line => line.trim() && !line.startsWith('Format code'))
+            .map(line => {
+                const parts = line.trim().split(/\s{2,}/);
+                return { code: parts[0], description: parts.slice(1).join(' ') };
+            });
 
-    ytDlp.stderr.on('data', (data) => {
-        console.error(`stderr: ${data}`);
-    });
+        res.status(200).json({ formats });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to fetch formats', message: error });
+    }
+});
 
-    ytDlp.on('error', (error) => {
-        console.error('Error spawning yt-dlp:', error);
-        res.status(500).send('Error downloading video.');
-    });
+// Route to handle downloading content with quality selection
+app.get('/download', async (req, res) => {
+    const { url, quality } = req.query;
 
-    ytDlp.on('close', (code) => {
-        if (code !== 0) {
-            console.error(`yt-dlp process exited with code ${code}`);
-        }
-    });
+    if (!url || !quality) {
+        return res.status(400).json({ error: 'URL and quality are required' });
+    }
+
+    const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+
+    try {
+        const command = `yt-dlp -f ${quality} -o "${downloadPath}" ${url}`;
+        await new Promise((resolve, reject) => {
+            exec(command, (err, stdout, stderr) => {
+                if (err) {
+                    reject(`Error during download: ${stderr}`);
+                } else {
+                    resolve(stdout);
+                }
+            });
+        });
+        res.download(downloadPath); // Send the video file to the client
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to download video', message: error });
+    }
 });
 
 // Start the server
