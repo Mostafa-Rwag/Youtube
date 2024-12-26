@@ -1,54 +1,132 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Video Downloader</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Downloader</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            color: #333;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"], button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .error, .success {
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: red;
+        }
+
+        .success {
+            color: green;
+        }
+    </style>
 </head>
 <body>
-  <h1>Download YouTube Video</h1>
-  <form id="downloadForm">
-    <label for="url">Video URL:</label>
-    <input type="text" id="url" name="url" required><br><br>
-    
-    <label for="quality">Select Quality:</label>
-    <select id="quality" name="quality" required>
-      <option value="best">Best Quality</option>
-      <option value="worst">Worst Quality</option>
-      <option value="22">22 (720p)</option>
-      <option value="137">137 (1080p)</option>
-    </select><br><br>
+    <div class="container">
+        <h1>Video Downloader</h1>
+        <form id="download-form">
+            <label for="url">YouTube Video URL:</label>
+            <input type="text" id="url" name="url" placeholder="Enter video URL" required />
+            <button type="submit">Download Video</button>
+        </form>
+        <p id="message" class="error"></p>
+    </div>
 
-    <button type="submit">Download</button>
-  </form>
+    <script>
+        const form = document.getElementById('download-form');
+        const messageElement = document.getElementById('message');
 
-  <script>
-    document.getElementById('downloadForm').addEventListener('submit', function(e) {
-      e.preventDefault();
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
 
-      const url = document.getElementById('url').value;
-      const quality = document.getElementById('quality').value;
+            const url = document.getElementById('url').value.trim();
+            if (!url) {
+                messageElement.textContent = "Please enter a video URL.";
+                return;
+            }
 
-      fetch('/download', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ url, quality })
-      })
-      .then(response => response.blob())
-      .then(data => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(data);
-        a.download = 'video.mp4';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      })
-      .catch(error => {
-        console.error('Error:', error);
-      });
-    });
-  </script>
+            messageElement.textContent = ""; // Clear previous messages
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url }),
+                });
+
+                if (response.ok) {
+                    // Trigger download by creating an invisible link
+                    const blob = await response.blob();
+                    const link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(blob);
+                    link.download = 'video.mp4'; // Default name
+                    link.click();
+                    messageElement.textContent = "Download started.";
+                    messageElement.className = "success";
+                } else {
+                    const errorData = await response.json();
+                    messageElement.textContent = errorData.error || "An error occurred.";
+                    messageElement.className = "error";
+                }
+            } catch (error) {
+                console.error("Error during download:", error);
+                messageElement.textContent = "An unexpected error occurred.";
+                messageElement.className = "error";
+            }
+        });
+    </script>
 </body>
 </html>
