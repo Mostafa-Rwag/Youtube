@@ -57,8 +57,8 @@ app.post('/download', (req, res) => {
     fs.mkdirSync(downloadPath); // Create download folder if it doesn't exist
   }
 
-  // Prepare the yt-dlp command to download the video
-  let command = `yt-dlp -f ${quality} -o "${downloadPath}/%(title)s.%(ext)s" ${url}`;
+  // Prepare the yt-dlp command to download the video in mp4 format with both video and audio
+  let command = `yt-dlp -f ${quality} -o "${downloadPath}/%(title)s.%(ext)s" ${url} --merge-output-format mp4`;
 
   exec(command, (err, stdout, stderr) => {
     if (err) {
