@@ -57,8 +57,8 @@ app.post('/download', (req, res) => {
     fs.mkdirSync(path.dirname(downloadPath)); // Create download folder if it doesn't exist
   }
 
-  // yt-dlp command to download the video in the best quality
-  exec(`yt-dlp -f best -o "${downloadPath}" ${url}`, (err, stdout, stderr) => {
+  // yt-dlp command to download the video in the selected quality
+  exec(`yt-dlp -f ${quality} -o "${downloadPath}" ${url}`, (err, stdout, stderr) => {
     if (err) {
       console.error('Error during download:', stderr);
       return res.status(500).send('Failed to download video.');
