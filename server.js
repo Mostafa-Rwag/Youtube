@@ -52,48 +52,29 @@ app.post('/download', (req, res) => {
   }
 
   // Define download path
-  const downloadPath = path.join(__dirname, 'downloads');
-  if (!fs.existsSync(downloadPath)) {
-    fs.mkdirSync(downloadPath); // Create download folder if it doesn't exist
+  const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
+  if (!fs.existsSync(path.dirname(downloadPath))) {
+    fs.mkdirSync(path.dirname(downloadPath)); // Create download folder if it doesn't exist
   }
 
-  // Prepare the yt-dlp command to download the video in mp4 format with both video and audio
-  let command = `yt-dlp -f ${quality} -o "${downloadPath}/%(title)s.%(ext)s" ${url} --merge-output-format mp4`;
-
-  exec(command, (err, stdout, stderr) => {
+  // yt-dlp command to download the video in the best quality
+  exec(`yt-dlp -f best -o "${downloadPath}" ${url}`, (err, stdout, stderr) => {
     if (err) {
-      console.error('Error:', err);
-      return res.status(500).json({ error: 'Error during download', message: stderr });
+      console.error('Error during download:', stderr);
+      return res.status(500).send('Failed to download video.');
     }
+    console.log('Video downloaded:', stdout);
 
-    if (stderr) {
-      console.error('stderr:', stderr);
-      return res.status(500).json({ error: 'Download failed', message: stderr });
-    }
-
-    // Check if file exists or if it's already downloaded
-    if (stdout.includes("has already been downloaded") || stdout.includes("File exists")) {
-      return res.status(200).json({ message: 'File already exists, skipping download.' });
-    }
-
-    // Check if download was successful
-    const downloadedFiles = fs.readdirSync(downloadPath);
-    const filePath = downloadedFiles.find(file => file.includes('.mp4'));
-
-    if (filePath && fs.existsSync(path.join(downloadPath, filePath))) {
-      res.status(200).json({
-        message: 'Download successful',
-        file: filePath,
-        filePath: `/downloads/${filePath}`  // This will allow the frontend to download the file
-      });
-    } else {
-      res.status(500).json({ error: 'Downloaded file is empty or missing' });
-    }
+    // Serve the downloaded video file to the client
+    res.download(downloadPath, (downloadErr) => {
+      if (downloadErr) {
+        console.error('Error while sending file:', downloadErr);
+        return res.status(500).send('Failed to send the video file.');
+      }
+      console.log('File sent successfully');
+    });
   });
 });
-
-// Route to serve downloaded files
-app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
 // Start the server
 app.listen(port, () => {
