@@ -21,6 +21,8 @@
     <button type="submit">Download</button>
   </form>
 
+  <div id="downloadStatus"></div>
+
   <script>
     document.getElementById('getFormatsButton').addEventListener('click', function() {
       const url = document.getElementById('url').value;
@@ -72,6 +74,8 @@
         return;
       }
 
+      document.getElementById('downloadStatus').textContent = "Downloading... Please wait.";
+
       fetch('/download', {
         method: 'POST',
         headers: {
@@ -81,11 +85,11 @@
       })
       .then(response => response.json())
       .then(data => {
-        alert('Download started!');
+        document.getElementById('downloadStatus').textContent = 'Download started!';
         console.log(data);
       })
       .catch(error => {
-        alert('An error occurred');
+        document.getElementById('downloadStatus').textContent = 'An error occurred';
         console.error(error);
       });
     });
