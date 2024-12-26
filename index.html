@@ -6,89 +6,49 @@
   <title>Video Downloader</title>
 </head>
 <body>
+  <h1>Download YouTube Video</h1>
+  <form id="downloadForm">
+    <label for="url">Video URL:</label>
+    <input type="text" id="url" name="url" required><br><br>
+    
+    <label for="quality">Select Quality:</label>
+    <select id="quality" name="quality" required>
+      <option value="best">Best Quality</option>
+      <option value="worst">Worst Quality</option>
+      <option value="22">22 (720p)</option>
+      <option value="137">137 (1080p)</option>
+    </select><br><br>
 
-<h1>Video Downloader</h1>
+    <button type="submit">Download</button>
+  </form>
 
-<form id="downloadForm">
-  <label for="url">Video URL:</label>
-  <input type="text" id="url" name="url" required>
-  <br><br>
+  <script>
+    document.getElementById('downloadForm').addEventListener('submit', function(e) {
+      e.preventDefault();
 
-  <label for="quality">Select Quality:</label>
-  <select id="quality" name="quality" required>
-    <option value="">Select Quality</option>
-    <!-- Quality options will be populated here -->
-  </select>
-  <br><br>
+      const url = document.getElementById('url').value;
+      const quality = document.getElementById('quality').value;
 
-  <button type="submit">Download</button>
-</form>
-
-<script>
-  // Function to fetch and populate available formats
-  async function fetchFormats(url) {
-    const response = await fetch('/get-formats', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const qualitySelect = document.getElementById('quality');
-      qualitySelect.innerHTML = '<option value="">Select Quality</option>'; // Reset options
-
-      data.formats.forEach(format => {
-        const option = document.createElement('option');
-        option.value = format.code;
-        option.textContent = format.description;
-        qualitySelect.appendChild(option);
-      });
-    }
-  }
-
-  // Listen for URL input change to fetch formats
-  document.getElementById('url').addEventListener('input', (e) => {
-    const url = e.target.value;
-    if (url) {
-      fetchFormats(url);
-    }
-  });
-
-  // Listen for form submission
-  document.getElementById('downloadForm').addEventListener('submit', async (event) => {
-    event.preventDefault();
-
-    const url = document.getElementById('url').value;
-    const quality = document.getElementById('quality').value;
-
-    if (url && quality) {
-      // Send request to download the video
-      const response = await fetch('/download', {
+      fetch('/download', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, quality }),
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ url, quality })
+      })
+      .then(response => response.blob())
+      .then(data => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(data);
+        a.download = 'video.mp4';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      })
+      .catch(error => {
+        console.error('Error:', error);
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        // If successful, prompt the user to download the file
-        alert(`Download successful: ${data.file}`);
-        
-        // Link to the file for download
-        const downloadLink = document.createElement('a');
-        downloadLink.href = data.filePath;
-        downloadLink.download = data.file;
-        downloadLink.click();
-      } else {
-        const error = await response.json();
-        alert(`Download failed: ${error.message}`);
-      }
-    } else {
-      alert('Please enter a URL and select quality');
-    }
-  });
-</script>
-
+    });
+  </script>
 </body>
 </html>
