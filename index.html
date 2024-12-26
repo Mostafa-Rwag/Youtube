@@ -3,33 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Download with Quality Selection</title>
+  <title>Download Video</title>
 </head>
 <body>
-  <h1>Download Video</h1>
+  <h1>Download Video with Quality Selection</h1>
   <form id="downloadForm">
     <label for="url">Video URL:</label>
     <input type="text" id="url" name="url" required><br><br>
 
+    <button type="button" id="getFormatsButton">Get Formats</button><br><br>
+
     <label for="quality">Select Quality:</label>
     <select id="quality" name="quality">
-      <option value="best">Best</option>
-      <option value="bestaudio">Best Audio</option>
-      <option value="bestvideo">Best Video</option>
-      <option value="worst">Worst</option>
+      <!-- Quality options will be populated here -->
     </select><br><br>
 
     <button type="submit">Download</button>
   </form>
 
   <script>
+    document.getElementById('getFormatsButton').addEventListener('click', function() {
+      const url = document.getElementById('url').value;
+      
+      if (!url) {
+        alert('Please enter a URL first');
+        return;
+      }
+
+      // Fetch video formats (available quality options)
+      fetch('/get-formats', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      })
+      .then(response => response.json())
+      .then(data => {
+        const qualitySelect = document.getElementById('quality');
+        qualitySelect.innerHTML = ''; // Clear previous options
+        
+        if (data.formats && data.formats.length > 0) {
+          // Populate the dropdown with available formats
+          data.formats.forEach(format => {
+            const option = document.createElement('option');
+            option.value = format.code;
+            option.textContent = `${format.code} - ${format.description}`;
+            qualitySelect.appendChild(option);
+          });
+        } else {
+          alert('No formats available');
+        }
+      })
+      .catch(error => {
+        alert('An error occurred while fetching formats');
+        console.error(error);
+      });
+    });
+
     document.getElementById('downloadForm').addEventListener('submit', function(event) {
       event.preventDefault();
 
       const url = document.getElementById('url').value;
       const quality = document.getElementById('quality').value;
 
-      fetch('http://localhost:3000/download', {
+      if (!quality) {
+        alert('Please select a quality');
+        return;
+      }
+
+      fetch('/download', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
