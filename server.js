@@ -1,6 +1,6 @@
 const express = require('express');
 const { exec } = require('child_process');
-const path = require('path');  // For serving static files
+const path = require('path');
 const app = express();
 const port = 3000;
 
@@ -8,26 +8,49 @@ const port = 3000;
 app.use(express.json());
 
 // Serve static files (e.g., HTML, CSS, JS)
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Route to serve the index.html file at the root URL
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname,'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Route to get video formats (quality options)
+app.post('/get-formats', (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // yt-dlp command to get video formats
+  const command = `yt-dlp -F ${url}`;
+
+  exec(command, (err, stdout, stderr) => {
+    if (err) {
+      console.error('Error:', err);
+      return res.status(500).json({ error: 'Error fetching formats', message: stderr });
+    }
+    const formats = stdout
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith('Format code'))
+      .map(line => {
+        const parts = line.trim().split(/\s{2,}/);
+        return { code: parts[0], description: parts.slice(1).join(' ') };
+      });
+    res.status(200).json({ formats });
+  });
 });
 
 // Route to handle downloading content with quality selection
 app.post('/download', (req, res) => {
-  const { url, quality } = req.body; // Receive URL and quality option from the client
+  const { url, quality } = req.body;
 
-  // Validate input
   if (!url || !quality) {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  // Prepare yt-dlp command based on selected quality
-  let command = `yt-dlp -f ${quality} ${url}`; 
+  let command = `yt-dlp -f ${quality} ${url}`;
 
-  // Run the yt-dlp command
   exec(command, (err, stdout, stderr) => {
     if (err) {
       console.error('Error:', err);
