@@ -43,7 +43,7 @@ app.post('/get-formats', (req, res) => {
   });
 });
 
-// Route to handle downloading content with quality selection
+// Route to handle downloading content with quality selection and stream to client
 app.post('/download', (req, res) => {
   const { url, quality } = req.body;
 
@@ -51,7 +51,7 @@ app.post('/download', (req, res) => {
     return res.status(400).json({ error: 'URL and quality are required' });
   }
 
-  // Define download path
+  // Define a temporary download path
   const downloadPath = path.join(__dirname, 'downloads', 'video.mp4');
   if (!fs.existsSync(path.dirname(downloadPath))) {
     fs.mkdirSync(path.dirname(downloadPath)); // Create download folder if it doesn't exist
@@ -65,12 +65,15 @@ app.post('/download', (req, res) => {
     }
     console.log('Video downloaded:', stdout);
 
-    // Serve the downloaded video file to the client
+    // Stream the video directly to the user's device
     res.download(downloadPath, (downloadErr) => {
       if (downloadErr) {
         console.error('Error while sending file:', downloadErr);
         return res.status(500).send('Failed to send the video file.');
       }
+
+      // Optionally, remove the video file after download
+      fs.unlinkSync(downloadPath);
       console.log('File sent successfully');
     });
   });
